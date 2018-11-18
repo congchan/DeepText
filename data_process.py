@@ -39,7 +39,7 @@ class DataProcessor(object):
     @staticmethod
     def read_tsv(input_file, quotechar=None):
         """Reads a tab separated value file."""
-        with open(input_file, "r") as f:
+        with open(input_file, "r", encoding='utf-8') as f:
             reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
             lines = []
             for line in reader:
@@ -52,6 +52,13 @@ class DataProcessor(object):
         with open(input_file,'r',encoding='utf-8') as f:
             lines = json.loads(f.readline())
             return lines
+
+    @staticmethod
+    def write_file(data, out_file):
+        " write data to out_file "
+        with open(out_file, 'w', encoding='utf-8') as the_file:
+            for line in data:
+                the_file.write(line+'\n')
 
     def get_labels(self):
         """Gets the list of labels for this data set."""
@@ -154,5 +161,4 @@ class DataProcessor(object):
         
         return label_list
 
-    
     
