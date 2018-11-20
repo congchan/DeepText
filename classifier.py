@@ -41,6 +41,7 @@ class Task(object):
     """
     def __init__(self, **kwargs):
         self.model_list = { 
+                            'textrnn': text_rnn,
                             }
         self.model = self.model_list[kwargs.get('which_model', 'fasttext')]
         self.output_dir = kwargs.get('output_dir', './output/')
@@ -128,3 +129,130 @@ class Task(object):
         plt.xlabel('Epoch')
         plt.legend(['Train', 'Test'], loc='upper left')
         plt.show()
+
+class Classifier(Task):
+    """
+    Define a classifier for classification task, inherited from Task.
+    
+    当前可供选择的模型列表
+            'textRNN',
+    
+    可以在models.py中定义新的模型， 然后添加进self.model_list中
+
+    数据：可以利用 SampleProcessor 协助转换文本为张量
+    -----------------------------------------------------------------------------------
+    usage:
+        init a new classifier:
+        >>> myclassifier = Classifier(max_seq_length=500, emb=300)
+        
+        init a new classifier with config parameters:
+        >>> myclassifier = Classifier(**config)
+
+        load from a check point: 
+        >>> myclassifier = Classifier(check_point = './pre_trained/fasttext.h5')
+
+    """
+    def __init__(self, **kwargs):        
+        super().__init__()
+
+        self.check_point = kwargs.get('check_point', None)
+        self.check_point_config = kwargs.get('check_point_config', None)
+        self.output_dir = kwargs.get('output_dir', './output/')
+        self.max_seq_length = kwargs.get('max_seq_length', 512)
+        self.emb = kwargs.get('emb', 128)
+        self.vob_size = kwargs.get('vob_size', 10000)
+        self.class_num = kwargs.get('class_num', 10)
+        self.which_model = kwargs.get('which_model', " ").lower()
+        self.pre_train_emb = kwargs.get('pre_train_emb', None)
+
+        self.model = self.build_model()
+
+    def build_model(self):
+        """ 加载模型，或者新建一个模型 """
+        if self.check_point:
+            model = keras.models.load_model(self.check_point)
+            print("Load model from {}".format(self.check_point))
+
+        elif self.which_model and self.which_model in self.model_list:
+            model = self.model_list[self.which_model](
+                    self.max_seq_length, 
+                    self.emb, 
+                    self.vob_size, 
+                    self.class_num,
+                    self.pre_train_emb)
+            print("Init a new {} model".format(self.which_model))
+
+        else:
+            error_msg  = 'Please specify a valid "which_model" value from {}.'.format(
+                    self.model_list.keys())
+            error_msg += 'Or provide a valid pretrained model file'
+            raise Exception(error_msg) 
+
+        return model
+
+
+import unittest
+class TestStringMethods(unittest.TestCase):
+
+    def test(self):
+        config ={'max_seq_length': 64,
+            'vob_size': 10000,
+            'emb_size': 128,
+            'num_train_epochs': 2,
+            'train_batch_size': 512,
+            'if_train': True,
+            'which_model': 'textRNN',
+            'train_file': './data/train.tsv',
+            'dev_file': "./data/dev.tsv",
+            'test_file': "./data/test.tsv",
+            'output_dir': './train',            
+            }
+
+        Path(config['output_dir']).mkdir(exist_ok=True)
+        log_path = os.path.join(config['output_dir'], "train.log")
+
+        logging.basicConfig(level=logging.INFO,
+                            handlers = [
+                                logging.StreamHandler(),
+                                logging.FileHandler(log_path)
+                            ])
+
+        logging.info("Configuration: {}".format(config))
+
+        
+        
+        processer = SampleProcessor(config, )
+        
+        # # 提取中文 bert embedding 用于你的模型， 
+        # # 注意： bert embedding 默认维度（768）与你的模型embedding 维度一致
+        # pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
+        #       processer.word2id)
+        # logging.info("Load BERT embedding")
+        # config.update({"pre_train_emb": pre_train_emb})
+
+        class_num = processer.class_num
+        config.update({"class_num":class_num})
+
+        classifier = Classifier(**config)
+        history = classifier.train(batch_size=config['train_batch_size'], 
+                epochs=config['num_train_epochs'], 
+                x_train=processer.train_X, 
+                y_train=processer.train_Y, 
+                x_dev=processer.test_X, 
+                y_dev=processer.test_Y,
+                model=None, 
+                class_weight=processer.class_weight)
+
+        
+        logging.info('Validation accuracry log:')
+        for acc in history.history.get('val_acc', ""):
+            logging.info(acc)
+
+
+
+if __name__ == '__main__':
+    " demo "
+    unittest.main()
+    conf = configparser.ConfigParser()
+    conf.read('./config.ini')
+    

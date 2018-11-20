@@ -7,12 +7,15 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-__all__ = ['DataProcessor']
+__all__ = [ 'DataProcessor',
+            'SampleProcessor',
+            ]
 
 import json, csv, logging
 import os, sys
 import nltk
 from nltk.util import ngrams
+import jieba
 import keras
 from keras.preprocessing.sequence import pad_sequences
 import numpy as np
@@ -162,3 +165,123 @@ class DataProcessor(object):
         return label_list
 
     
+    
+class SampleProcessor(DataProcessor):
+    """ Sample processor for the classification data set.
+        Tranform the text to tensor for training         
+        if use pre-train model, need vocabulary file
+        usage:
+            process data files 
+            >>> processer = SampleProcessor(config, )
+
+            provide your own data in list format [train_X, train_Y, test_X, test_Y]
+            >>> processer = SampleProcessor(config, data)
+
+    """
+    def __init__(self, config, data=None,): 
+        self.config = config
+        self.init_checkpoint = config.get('init_checkpoint', None)
+        self.init_checkpoint_config = config.get('init_checkpoint_config', None)
+        self.vocab_file = config.get('vocab_file', None)
+        self.max_seq_length = config.get('max_seq_length', 500)
+        self.vob_size = config.get('vob_size', 10000)
+        self.ngram = config.get('ngram', 1)
+        self.output_dir = config.get('output_dir', './output/')
+        self.which_model = config.get('which_model', None)
+        self.class_weight = None
+        self.class_num = None
+
+        if data is None:
+            logging.info("="*10+"start processing data from files {}".format(
+                            [config.get('train_file'), config.get('test_file')]))
+            self.train_X, self.train_Y, self.test_X, self.test_Y = \
+                self.encode_data(
+                    *self.get_data_from_file(config.get('train_file')), 
+                    *self.get_data_from_file(config.get('test_file')), 
+                    ) 
+            logging.info("="*10+"Completed processing data"+"="*10)
+        else:
+            self.train_X, self.train_Y, self.test_X, self.test_Y = data
+
+    @staticmethod
+    def _tokenize(text):
+        """ define your tokenizer, return text that being tokenized """
+        return " ".join(jieba.lcut(text))
+        
+
+    def get_data_from_file(self, input_file, set_type=None):
+        """ 读取文件数据, 提取label. """
+        lines = self.read_tsv(input_file)
+        X = []
+        Y = []
+        for line in lines[1:]:  
+            sequence = line[-1]
+            label = line[1]
+            X.append(self._tokenize(sequence))
+            if set_type != 'predict':
+                Y.append(label)
+
+        return X, Y
+
+    def get_word2id(self, vocab):
+        " return word2id mapping "
+        word2id = {}
+        for i, v in enumerate(vocab):
+            word2id[v] = i
+        return word2id
+
+
+    def encode_data(self, train_X, train_Y, test_X, test_Y):
+        self.word2id, self.label2id, self.class_weight, _ = self._encode_mapping(train_X, train_Y)
+        train_X = self._text_to_sequence(self.word2id, train_X, self.ngram, self.max_seq_length)
+        train_Y = self._label_to_onehot(train_Y, self.label2id)
+
+        test_X = self._text_to_sequence(self.word2id, test_X, self.ngram, self.max_seq_length)
+        test_Y = self._label_to_onehot(test_Y, self.label2id)
+
+        return train_X, train_Y, test_X, test_Y
+ 
+    def _encode_mapping(self, train_X, train_Y):
+        if self.init_checkpoint and self.init_checkpoint_config and self.vocab_file:
+            word2id = self.get_vocab(self.read_text(self.vocab_file))
+            label2id, class_weight, parameter = json.load(
+                open(self.init_checkpoint_config, 'r', encoding='utf-8'))
+        else:
+            # build vocabulary and word2id mapping
+            if self.which_model != 'fasttext':
+                self.ngram = 1
+            vectorizer = CountVectorizer(token_pattern = '[^\s]+', 
+                                        ngram_range=(1, self.ngram), 
+                                        max_df=1.0, 
+                                        min_df=1, 
+                                        max_features=self.vob_size)
+            vectorizer.fit(train_X)
+            vocab = list(vectorizer.vocabulary_.keys())
+            word2id = self.get_word2id(vocab)
+            
+            # create label2id mapping
+            Binarizer = MultiLabelBinarizer()
+            Binarizer.fit_transform([train_Y])
+            label2id = {label: index for index, label in enumerate(Binarizer.classes_)}
+            self.class_num = len(Binarizer.classes_)
+            # create class_weight for unbalanced data during training
+            # label_freq = nltk.FreqDist(train_Y)
+            label_freq = collections.Counter(train_Y)
+            logging.info('label_freq statistics: {}'.format(label_freq))
+            class_weight = {int(index): max(label_freq.values())/label_freq[label] 
+                            for index, label in enumerate(Binarizer.classes_)}
+            
+            # store necessary model parameter
+            parameter = {'model':self.which_model, 
+                        'max_length':self.max_seq_length, 
+                        'ngram':self.ngram}
+            
+            # save vocab, label2id, class_weight, parameter
+            self.write_file(vocab, os.path.join(self.output_dir, 'vocab.txt'))
+            json.dump([label2id, class_weight, parameter], 
+                    open(os.path.join(self.output_dir, 'model_config.json'), 
+                            'w', encoding='utf-8'), ensure_ascii=False)
+        
+        return word2id, label2id, class_weight, parameter
+
+
