@@ -41,7 +41,12 @@ class Task(object):
     """
     def __init__(self, **kwargs):
         self.model_list = { 
+                            'fasttext': fasttext, 
+                            'textcnn': text_cnn, 
+                            'textrcnn': text_rcnn,
+                            'textinception': text_inception,
                             'textrnn': text_rnn,
+                            'textrnnatt': text_rnn_attention,
                             }
         self.model = self.model_list[kwargs.get('which_model', 'fasttext')]
         self.output_dir = kwargs.get('output_dir', './output/')
@@ -134,12 +139,17 @@ class Classifier(Task):
     """
     Define a classifier for classification task, inherited from Task.
     
-    当前可供选择的模型列表
+    Available models
+            'fasttext', 
+            'textCNN', 
+            'textRCNN',
+            'textInception',
             'textRNN',
+            'textRNNATT',
     
-    可以在models.py中定义新的模型， 然后添加进self.model_list中
+    You could define your new model in models.py, and added in self.model_list
 
-    数据：可以利用 SampleProcessor 协助转换文本为张量
+    Data：make use of SampleProcessor 
     -----------------------------------------------------------------------------------
     usage:
         init a new classifier:
@@ -168,7 +178,7 @@ class Classifier(Task):
         self.model = self.build_model()
 
     def build_model(self):
-        """ 加载模型，或者新建一个模型 """
+        """ load a pre-trained model, or build a new model """
         if self.check_point:
             model = keras.models.load_model(self.check_point)
             print("Load model from {}".format(self.check_point))

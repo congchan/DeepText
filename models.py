@@ -6,6 +6,10 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 __all__ = [ 
+            'fasttext', 
+            'text_cnn', 
+            'text_rcnn',
+            'text_inception',
             'text_rnn',
             'text_rnn_attention',
             'AttentionWithContext', 
@@ -48,7 +52,7 @@ def _bilstm_attention(max_length, emb_size, max_words, class_num, attention=Fals
                             input_length=max_length, 
                             embeddings_initializer=embeddings_initializer,
                             )(input)
-    drop_out_input = Dropout(0.5, name='dropout_word')(embed_input)
+    drop_out_input = Dropout(0.5, name='dropout_layer')(embed_input)
     bi_layer = Bidirectional(GRU(128, dropout=0.1, return_sequences=True))(drop_out_input)
     
     if attention:
@@ -124,8 +128,138 @@ class AttentionWithContext(Layer):
 
     def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[-1])
-    drop_out_input = Dropout(0.5, name='dropout_word')(embed_input)
-    bi_layer = Bidirectional(GRU(128, return_sequences=True))(drop_out_input)
 
+
+def fasttext(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+    """ return single label classification fasttext model 
+        paper: Bag of Tricks for Efficient Text Classification
+        The original paper use average pooling.
+        In many Kaggle application, Max Pooling is found to be useful
+    """
+    input = Input(shape=(max_length,), dtype='int32', name='input')
+    
+    embeddings_initializer = 'uniform'
+    if pre_train_emb is not None:
+        embeddings_initializer = initializers.Constant(pre_train_emb)
+    embed_input = Embedding(output_dim=emb_size, dtype='float32', input_dim=max_words + 1, 
+                            input_length=max_length, 
+                            embeddings_initializer=embeddings_initializer,
+                            trainable=True
+                            )(input)
+   
+    drop_out_input = Dropout(0.5, name='dropout_layer')(embed_input)
+    ave_pool = GlobalAveragePooling1D()(drop_out_input)
+    max_pool = GlobalMaxPooling1D()(drop_out_input)
+    concat_pool = concatenate([ave_pool, max_pool])
+    output = Dense(class_num, activation='softmax', name='output')(concat_pool)
+    model = Model(inputs=[input], outputs=output)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
+
+
+
+def text_cnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+    " textCNN model "
+    input = Input(shape=(max_length,), dtype='float32', name='input')
+    embeddings_initializer = 'uniform'
+    if pre_train_emb is not None:
+        embeddings_initializer = initializers.Constant(pre_train_emb)
+    embed_input = Embedding(output_dim=emb_size, dtype='float32', input_dim=max_words + 1, 
+                            input_length=max_length, 
+                            embeddings_initializer=embeddings_initializer,
+                            )(input)
+
+    drop_out_layer = Dropout(0.5, name='dropout_layer')(embed_input)
+    cnn1_1    = Conv1D(128, 1, padding='same', strides=1)(drop_out_layer)
+    cnn1_1_bn = BatchNormalization()(cnn1_1)
+    cnn1_1_at = Activation(activation='relu')(cnn1_1_bn)
+    cnn1_2    = Conv1D(128, 1, padding='same', strides=1)(cnn1_1_at)
+    cnn1_2_bn = BatchNormalization()(cnn1_2)
+    cnn1_2_at = Activation(activation='relu')(cnn1_2_bn)
+    cnn1      = GlobalMaxPooling1D()(cnn1_2_at)
+
+    cnn2_1    = Conv1D(128, 2, padding='same', strides=1)(drop_out_layer)
+    cnn2_1_bn = BatchNormalization()(cnn2_1)
+    cnn2_1_at = Activation(activation='relu')(cnn2_1_bn)
+    cnn2_2    = Conv1D(128, 2, padding='same', strides=1)(cnn2_1_at)
+    cnn2_2_bn = BatchNormalization()(cnn2_2)
+    cnn2_2_at = Activation(activation='relu')(cnn2_2_bn)
+    cnn2      = GlobalMaxPooling1D()(cnn2_2_at)
+
+    cnn3_1    = Conv1D(128, 4, padding='same', strides=1)(drop_out_layer)
+    cnn3_1_bn = BatchNormalization()(cnn3_1)
+    cnn3_1_at = Activation(activation='relu')(cnn3_1_bn)
+    cnn3_2    = Conv1D(128, 4, padding='same', strides=1)(cnn3_1_at)
+    cnn3_2_bn = BatchNormalization()(cnn3_2)
+    cnn3_2_at = Activation(activation='relu')(cnn3_2_bn)
+    cnn3      = GlobalMaxPooling1D()(cnn3_2_at)    
+
+    concat_cnn = concatenate([cnn1, cnn2, cnn3], axis=-1)
+    output = Dense(class_num, activation='softmax', name='output')(concat_cnn)
+    model = Model(inputs=[input], outputs=output)
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+
+def text_rcnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+    " using GRU cell "
+    input = Input(shape=(max_length,), dtype='int32', name='input')
+
+    embeddings_initializer = 'uniform'
+    if pre_train_emb is not None:
+        embeddings_initializer = initializers.Constant(pre_train_emb)
+    embed_input = Embedding(output_dim=emb_size, dtype='float32', input_dim=max_words + 1, 
+                            input_length=max_length, 
+                            embeddings_initializer=embeddings_initializer,
+                            )(input)
+    drop_out_input = Dropout(0.5, name='dropout_layer')(embed_input)
+
+    bi_layer = Bidirectional(GRU(128, return_sequences=True))(drop_out_input)
+    cnn = Conv1D(128, kernel_size=3, padding='same', activation='relu')(bi_layer)
+    max_pool = GlobalMaxPooling1D()(cnn)
+    output = Dense(class_num, activation='softmax', name='output')(max_pool)
+    model = Model(inputs=[input], outputs=output,)
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+
+def text_inception(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+    input = Input(shape=(max_length,), dtype='float32', name='input')
+
+    embeddings_initializer = 'uniform'
+    if pre_train_emb is not None:
+        embeddings_initializer = initializers.Constant(pre_train_emb)
+    embed_input = Embedding(output_dim=emb_size, dtype='float32', input_dim=max_words + 1, 
+                            input_length=max_length, 
+                            embeddings_initializer=embeddings_initializer,
+                            )(input)
+
+    drop_out_input  = Dropout(0.5, name='dropout_layer')(embed_input)    
+    inception1      = _text_inception(drop_out_input, 128)
+    inception2      = _text_inception(inception1, 128)
+    inception2_pool = GlobalMaxPooling1D()(inception2)
+    output          = Dense(class_num, activation='softmax', name='output')(inception2_pool)
+    model           = Model(inputs=[input], outputs=output)
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+def _text_inception(drop_out_input, filter_num):
+    cnn1_1     = Conv1D(filter_num, 1, padding='same', strides=1)(drop_out_input)
+    cnn1_1_bn  = BatchNormalization()(cnn1_1)
+    cnn1_1_at  = Activation(activation='relu')(cnn1_1_bn)
+    cnn1_2     = Conv1D(filter_num, 3, padding='same', strides=1)(cnn1_1_at)
+
+    cnn2_1     = Conv1D(filter_num, 3, padding='same', strides=1)(drop_out_input)
+    cnn2_1_bn  = BatchNormalization()(cnn2_1)
+    cnn2_1_at  = Activation(activation='relu')(cnn2_1_bn)
+    cnn2_2     = Conv1D(filter_num, 5, padding='same', strides=1)(cnn2_1_at)
+
+    cnn3_1     = Conv1D(filter_num, 3, padding='same', strides=1)(drop_out_input)
+    cnn4_1     = Conv1D(filter_num, 1, padding='same', strides=1)(drop_out_input)
+
+    concat_cnn = concatenate([cnn1_2, cnn2_2, cnn3_1,cnn4_1], axis=-1)
+    concat_bn  = BatchNormalization()(concat_cnn)
+    concat_at  = Activation(activation='relu')(concat_bn)
+    return concat_at
+
+
