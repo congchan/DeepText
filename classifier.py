@@ -153,7 +153,7 @@ class Classifier(Task):
     -----------------------------------------------------------------------------------
     usage:
         init a new classifier:
-        >>> myclassifier = Classifier(max_seq_length=500, emb=300)
+        >>> myclassifier = Classifier(max_seq_length=500, emb_size=300)
         
         init a new classifier with config parameters:
         >>> myclassifier = Classifier(**config)
@@ -169,7 +169,7 @@ class Classifier(Task):
         self.check_point_config = kwargs.get('check_point_config', None)
         self.output_dir = kwargs.get('output_dir', './output/')
         self.max_seq_length = kwargs.get('max_seq_length', 512)
-        self.emb = kwargs.get('emb', 128)
+        self.emb_size = kwargs.get('emb_size', 128)
         self.vob_size = kwargs.get('vob_size', 10000)
         self.class_num = kwargs.get('class_num', 10)
         self.which_model = kwargs.get('which_model', " ").lower()
@@ -186,7 +186,7 @@ class Classifier(Task):
         elif self.which_model and self.which_model in self.model_list:
             model = self.model_list[self.which_model](
                     self.max_seq_length, 
-                    self.emb, 
+                    self.emb_size, 
                     self.vob_size, 
                     self.class_num,
                     self.pre_train_emb)

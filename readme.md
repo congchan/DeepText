@@ -38,9 +38,9 @@ Make use of `SampleProcessor` class (or define your own)
 For classifier, make use of `Classifier` class
 ```python
 # init a new classifier:
->>> myclassifier = Classifier(max_seq_length=500, emb=300)
+>>> myclassifier = Classifier(max_seq_length=500, emb_size=300)
 
-init a new classifier with config parameters:
+init a new classifier with config parameters (config as dictionary):
 >>> myclassifier = Classifier(**config)
 
 load from a check point: 
