@@ -233,12 +233,12 @@ class TestStringMethods(unittest.TestCase):
         
         processer = SampleProcessor(config, )
         
-        # # 提取中文 bert embedding 用于你的模型， 
-        # # 注意： bert embedding 默认维度（768）与你的模型embedding 维度一致
-        # pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
-        #       processer.word2id)
-        # logging.info("Load BERT embedding")
-        # config.update({"pre_train_emb": pre_train_emb})
+        # 提取中文 bert embedding 用于你的模型， 
+        # Notice: pre-trained bert model embedding size should be the same as your model
+        pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
+              processer.word2id)
+        logging.info("Load BERT embedding")
+        config.update({"pre_train_emb": pre_train_emb})
 
         class_num = processer.class_num
         config.update({"class_num":class_num})

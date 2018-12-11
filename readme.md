@@ -17,12 +17,10 @@ This package aims to handle most of these tasks using deep learning models with 
 * textInception
 * bigru_att
 
-## Usage
-step:
-1. Data: provide data / process data
-2. define task: say, a classifier
-
-Make use of `classifier.py`
+## Features
+1. Get BERT pre-trained words representation. You should download the BERT pre-trained model by yourself, and put it at the `./bert/` directory, say `./bert/chinese_L-12_H-768_A-12`
+2. Data: provide data / process data
+3. Define task: say, a classifier. Make use of `classifier.py`
 
 ### Data
 Make use of `SampleProcessor` class (or define your own) 
@@ -45,4 +43,14 @@ init a new classifier with config parameters (config as dictionary):
 
 load from a check point: 
 >>> myclassifier = Classifier(check_point = './your_own_model.h5')
+```
+
+### BERT pre-trained words representation
+support pre-trained bert model: chinese_L-12_H-768_A-12
+```python
+# 提取中文 bert embedding 用于你的模型， 
+# Notice: pre-trained bert model embedding size should be the same as your model
+pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
+        processer.word2id)
+config.update({"pre_train_emb": pre_train_emb})
 ```

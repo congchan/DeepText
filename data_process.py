@@ -23,7 +23,7 @@ import collections
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.feature_extraction.text import CountVectorizer
-
+import bert.bert_embedding as bert_embedding
 
 
 class DataProcessor(object):
@@ -123,6 +123,27 @@ class DataProcessor(object):
                 embedding_matrix[i] = embedding_vector
         return embedding_matrix
 
+    @staticmethod
+    def load_bert_embedding(vob_size, word2id):
+        """ Get bert pre-trained representation,  
+            for example, pre-trained chinese_L-12_H-768_A-12, 
+                the hidden_size is 768 
+        """
+        EMB_SIZE = 768
+        emb_size = EMB_SIZE
+        num_words = min(vob_size, len(word2id)) + 1
+        embedding_matrix = np.zeros((num_words, emb_size))
+        embedding_vectors = bert_embedding.response_request(list(word2id.keys()))
+
+        for word, i in word2id.items():
+            i = int(i)
+            if i > vob_size:
+                continue
+            embedding_vector = embedding_vectors.get(word, None)
+            if embedding_vector is not None:
+                # words not found in embedding index will be all-zeros.
+                embedding_matrix[i] = embedding_vector
+        return embedding_matrix 
 
 
     def _pad_ngrams(self, text_list, ngram):
