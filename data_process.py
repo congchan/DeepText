@@ -124,26 +124,19 @@ class DataProcessor(object):
         return embedding_matrix
 
     @staticmethod
-    def load_bert_embedding(vob_size, word2id):
+    def load_bert_embedding(vob_size, emb_size, word2id):
         """ Get bert pre-trained representation,  
             for example, pre-trained chinese_L-12_H-768_A-12, 
                 the hidden_size is 768 
-        """
-        EMB_SIZE = 768
-        emb_size = EMB_SIZE
+        """        
         num_words = min(vob_size, len(word2id)) + 1
-        embedding_matrix = np.zeros((num_words, emb_size))
-        embedding_vectors = bert_embedding.response_request(list(word2id.keys()))
-
+        rep_matrix = np.zeros((num_words, emb_size))
+        word2vec = bert_embedding.get_words_representation(list(word2id))
         for word, i in word2id.items():
-            i = int(i)
             if i > vob_size:
                 continue
-            embedding_vector = embedding_vectors.get(word, None)
-            if embedding_vector is not None:
-                # words not found in embedding index will be all-zeros.
-                embedding_matrix[i] = embedding_vector
-        return embedding_matrix 
+            rep_matrix[i] = word2vec[word]
+        return rep_matrix
 
 
     def _pad_ngrams(self, text_list, ngram):
@@ -213,14 +206,13 @@ class SampleProcessor(DataProcessor):
         self.class_num = None
 
         if data is None:
-            logging.info("="*10+"start processing data from files {}".format(
+            logging.info("="*10+" start processing data from files: \n {}".format(
                             [config.get('train_file'), config.get('test_file')]))
-            self.train_X, self.train_Y, self.test_X, self.test_Y = \
-                self.encode_data(
+            self.train_X, self.train_Y, self.test_X, self.test_Y = self.encode_data(
                     *self.get_data_from_file(config.get('train_file')), 
                     *self.get_data_from_file(config.get('test_file')), 
-                    ) 
-            logging.info("="*10+"Completed processing data"+"="*10)
+                    )
+            logging.info("="*10+" Completed processing data "+"="*10)
         else:
             self.train_X, self.train_Y, self.test_X, self.test_Y = data
 

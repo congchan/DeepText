@@ -7,16 +7,13 @@ import tensorflow as  tf
 import os
 import collections
 import  six
-# from gevent import monkey
-# monkey.patch_all()
-# from flask import Flask, request
-# from gevent import pywsgi
 import numpy  as np
 import json
 from .tokenization import FullTokenizer
 from .modeling import BertConfig, BertModel
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
+    
+# This is your Project Root
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 
 flags = tf.flags
  
@@ -38,25 +35,8 @@ flags.DEFINE_string(
     "init_checkpoint", os.path.join(BERT_PATH, 'bert_model.ckpt'),
     "Initial checkpoint (usually from a pre-trained BERT model)."
 )
- 
-# app = Flask(__name__)
 
- 
-tokenizer = FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=True)
- 
-init_checkpoint = FLAGS.init_checkpoint
-use_tpu=False
- 
-sess=tf.Session()
- 
-bert_config = BertConfig.from_json_file(FLAGS.bert_config_file)
- 
-print(init_checkpoint)
- 
-is_training=False
-use_one_hot_embeddings=False
- 
+
 def convert_single_example(vectors, maxlen=10):
     length=len(vectors)
     if length>=maxlen:
@@ -66,42 +46,80 @@ def convert_single_example(vectors, maxlen=10):
         mask=[1]*length+[0]*(maxlen-length)
         segment=[0]*maxlen
         return input, mask, segment
- 
- 
-input_ids_p   = tf.placeholder(shape=[None,None],dtype=tf.int32,name="input_ids_p")
-input_mask_p  = tf.placeholder(shape=[None,None],dtype=tf.int32,name="input_mask_p")
-segment_ids_p = tf.placeholder(shape=[None,None],dtype=tf.int32,name="segment_ids_p")
- 
-model = BertModel(
-        config=bert_config,
-        is_training=is_training,
-        input_ids=input_ids_p,
-        input_mask=input_mask_p,
-        token_type_ids=segment_ids_p,
-        use_one_hot_embeddings=use_one_hot_embeddings
-    )
- 
-restore_saver = tf.train.Saver()
-restore_saver.restore(sess, init_checkpoint)
- 
- 
- 
-# @app.route('/bertvectors')
-# def response_request():
-#     text = request.args.get('text')
- 
-#     vectors = [di.get("[CLS]")] + [di.get(i) if i in di else di.get("[UNK]") for i in list(text)] + [di.get("[SEP]")]
- 
-#     input, mask, segment = inputs(vectors)
- 
-#     input_ids = np.reshape(np.array(input), [1, -1])
-#     input_mask = np.reshape(np.array(mask), [1, -1])
-#     segment_ids = np.reshape(np.array(segment), [1, -1])
- 
-#     embedding = tf.squeeze(model.get_sequence_output())
- 
-#     ret=sess.run(embedding,feed_dict={"input_ids_p:0":input_ids,"input_mask_p:0":input_mask,"segment_ids_p:0":segment_ids})
-#     return  json.dumps(ret.tolist(), ensure_ascii=False)
+
+
+
+def get_words_representation(word_list):
+    """ return the embedding of the request text list
+        Support Chinese words.
+        Pool the tokens vectors to become word representation
+    """
+    tokenizer = FullTokenizer(
+        vocab_file=FLAGS.vocab_file, do_lower_case=True)
+    
+    init_checkpoint = FLAGS.init_checkpoint
+    use_tpu = False
+    
+    sess = tf.Session()
+    
+    bert_config = BertConfig.from_json_file(FLAGS.bert_config_file)
+    
+    print(init_checkpoint)
+    
+    is_training=False
+    use_one_hot_embeddings=False
+
+    input_ids_p   = tf.placeholder(shape=[None,None],dtype=tf.int32,name="input_ids_p")
+    input_mask_p  = tf.placeholder(shape=[None,None],dtype=tf.int32,name="input_mask_p")
+    segment_ids_p = tf.placeholder(shape=[None,None],dtype=tf.int32,name="segment_ids_p")
+    
+    model = BertModel(
+            config=bert_config,
+            is_training=is_training,
+            input_ids=input_ids_p,
+            input_mask=input_mask_p,
+            token_type_ids=segment_ids_p,
+            use_one_hot_embeddings=use_one_hot_embeddings
+        )
+    
+    restore_saver = tf.train.Saver()
+    restore_saver.restore(sess, init_checkpoint)
+    #####################################################################################
+    word2vec = {}      
+    # mark the segment of each word    
+    n = 150
+    chunks_list = [word_list[i:i + n] for i in range(0, len(word_list), n)] 
+    for chunks in chunks_list:
+        segments = {}
+        start = 0
+        end = 0
+        concat_indice = [tokenizer.vocab.get("[CLS]")]  
+        for word in chunks:
+            start = end + 1
+            tokens = [tokenizer.vocab.get(token) for token in tokenizer.tokenize(word)]
+            tokens += [tokenizer.vocab.get("[SEP]")]
+            concat_indice += tokens
+            end = len(concat_indice) # always mark the "[SEP]" as boundary
+            segments[word] = (start, end)
+        assert(len(segments) == len(chunks))
+
+        input, mask, segment = convert_single_example(concat_indice, 
+                maxlen=len(concat_indice))
+        input_ids      = np.reshape(np.array(input), [1, -1])
+        input_mask     = np.reshape(np.array(mask), [1, -1])
+        segment_ids    = np.reshape(np.array(segment), [1, -1])
+        embeddings     = tf.squeeze(model.get_sequence_output())
+        representations = sess.run(embeddings, 
+            feed_dict={"input_ids_p:0":input_ids, "input_mask_p:0":input_mask, 
+                "segment_ids_p:0":segment_ids})
+        representations = np.array(representations)
+        # pool out each word
+        for word, (start, end) in segments.items():
+            word_rep = np.mean(representations[start:end], axis=0)
+            word2vec[word] = word_rep
+    
+    return word2vec
+
 
 def pool_vectors(encoder_layer, input_mask, pooling_strategy='REDUCE_MEAN'):
   minus_mask = lambda x, m: x - tf.expand_dims(1.0 - m, axis=-1) * 1e30
@@ -118,28 +136,6 @@ def pool_vectors(encoder_layer, input_mask, pooling_strategy='REDUCE_MEAN'):
                         masked_reduce_max(encoder_layer, input_mask)], axis=1)
   return pooled
 
-def response_request(text_list):
-  """ return the embedding of the request text list
-      Text list contains list of Chinese words.
-      Pool the tokens vectors to become word representation
-  """
-  word2bert = {}
-  for text in text_list:
-    indice = [tokenizer.vocab.get("[CLS]")] \
-      + [tokenizer.vocab.get(token) for token in tokenizer.tokenize(text)] \
-      + [tokenizer.vocab.get("[SEP]")]
-    input, mask, segment = convert_single_example(indice, maxlen=64)
-    input_ids   = np.reshape(np.array(input), [1, -1])
-    input_mask  = np.reshape(np.array(mask), [1, -1])
-    segment_ids = np.reshape(np.array(segment), [1, -1])
-    embeddings   = tf.squeeze(model.get_sequence_output())
-    pool_embedding = pool_vectors(embeddings, tf.cast(input_mask, tf.float32))
-    ret = sess.run(pool_embedding, 
-        feed_dict={"input_ids_p:0":input_ids, "input_mask_p:0":input_mask, 
-            "segment_ids_p:0":segment_ids})
-    word2bert[text] = ret.tolist()
-
-  return word2bert
  
 if __name__ == "__main__":
     # server = pywsgi.WSGIServer(('0.0.0.0', 19877), app)

@@ -229,17 +229,20 @@ class TestStringMethods(unittest.TestCase):
 
         logging.info("Configuration: {}".format(config))
 
-        
-        
         processer = SampleProcessor(config, )
-        
-        # 提取中文 bert embedding 用于你的模型， 
-        # Notice: pre-trained bert model embedding size should be the same as your model
-        pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
-              processer.word2id)
-        logging.info("Load BERT embedding")
-        config.update({"pre_train_emb": pre_train_emb})
 
+        ################################################################################
+        # 提取中文预训练BERT模型的vocab向量表达，作为你的模型的embedding参数
+        # Notice: pre-trained bert model embedding size should be the same as your model
+        tic = time.time()
+        
+        pre_train_emb = processer.load_bert_embedding(
+                processer.vob_size, config['emb_size'], processer.word2id)
+        toc = time.time()
+        logging.info("Cost {:.2f}s to load BERT representation for {} words.".format(
+                toc-tic, config['vob_size']))
+        config.update({"pre_train_emb": pre_train_emb})
+        ################################################################################
         class_num = processer.class_num
         config.update({"class_num":class_num})
 

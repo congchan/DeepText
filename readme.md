@@ -48,9 +48,11 @@ load from a check point:
 ### BERT pre-trained words representation
 support pre-trained bert model: chinese_L-12_H-768_A-12
 ```python
-# 提取中文 bert embedding 用于你的模型， 
+# 提取中文预训练BERT模型的vocab向量表达，作为你的模型的embedding参数
 # Notice: pre-trained bert model embedding size should be the same as your model
-pre_train_emb = processer.load_bert_embedding(processer.vob_size, 
-        processer.word2id)
+pre_train_emb = processer.load_bert_embedding(
+        processer.vob_size, config['emb_size'], processer.word2id)
+logging.info("Cost {:.2f}s to load BERT representation for {} words.".format(
+        toc-tic, config['vob_size']))
 config.update({"pre_train_emb": pre_train_emb})
 ```
