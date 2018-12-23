@@ -10,12 +10,12 @@ This package aims to handle most of these tasks using deep learning models with 
 `Keras > 2.0`
 
 ## Models List
+* RNN
+* CNN
+* RCNN
+* RNN with Attention
 * fasttext
-* textRNN
-* textCNN
-* textRCNN
-* textInception
-* bigru_att
+* Inception
 
 ## Features
 1. Get BERT pre-trained words representation. You should download the BERT pre-trained model by yourself, and put it at the `./bert/` directory, say `./bert/chinese_L-12_H-768_A-12`

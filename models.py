@@ -7,11 +7,11 @@ from __future__ import print_function
 
 __all__ = [ 
             'fasttext', 
-            'text_cnn', 
-            'text_rcnn',
-            'text_inception',
-            'text_rnn',
-            'text_rnn_attention',
+            'cnn', 
+            'rcnn',
+            'inception',
+            'rnn',
+            'rnn_attention',
             'AttentionWithContext', 
             ]
 
@@ -32,11 +32,11 @@ from keras.engine.topology import Layer
 from keras import initializers, regularizers, constraints
 
 
-def text_rnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+def rnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     " Text RNN model using GRU cell"
     return _bilstm_attention(max_length, emb_size, max_words, class_num, False, pre_train_emb)
 
-def text_rnn_attention(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+def rnn_attention(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     " Text RNN model using GRU cell with attention mechanism"
     return _bilstm_attention(max_length, emb_size, max_words, class_num, True, pre_train_emb)
 
@@ -158,7 +158,7 @@ def fasttext(max_length, emb_size, max_words, class_num, pre_train_emb=None):
 
 
 
-def text_cnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+def cnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     " textCNN model "
     input = Input(shape=(max_length,), dtype='float32', name='input')
     embeddings_initializer = 'uniform'
@@ -201,7 +201,7 @@ def text_cnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     return model
 
 
-def text_rcnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+def rcnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     " using GRU cell "
     input = Input(shape=(max_length,), dtype='int32', name='input')
 
@@ -223,7 +223,7 @@ def text_rcnn(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     return model
 
 
-def text_inception(max_length, emb_size, max_words, class_num, pre_train_emb=None):
+def inception(max_length, emb_size, max_words, class_num, pre_train_emb=None):
     input = Input(shape=(max_length,), dtype='float32', name='input')
 
     embeddings_initializer = 'uniform'
@@ -235,15 +235,15 @@ def text_inception(max_length, emb_size, max_words, class_num, pre_train_emb=Non
                             )(input)
 
     drop_out_input  = Dropout(0.5, name='dropout_layer')(embed_input)    
-    inception1      = _text_inception(drop_out_input, 128)
-    inception2      = _text_inception(inception1, 128)
+    inception1      = _inception(drop_out_input, 128)
+    inception2      = _inception(inception1, 128)
     inception2_pool = GlobalMaxPooling1D()(inception2)
     output          = Dense(class_num, activation='softmax', name='output')(inception2_pool)
     model           = Model(inputs=[input], outputs=output)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
 
-def _text_inception(drop_out_input, filter_num):
+def _inception(drop_out_input, filter_num):
     cnn1_1     = Conv1D(filter_num, 1, padding='same', strides=1)(drop_out_input)
     cnn1_1_bn  = BatchNormalization()(cnn1_1)
     cnn1_1_at  = Activation(activation='relu')(cnn1_1_bn)

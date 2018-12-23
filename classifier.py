@@ -42,11 +42,11 @@ class Task(object):
     def __init__(self, **kwargs):
         self.model_list = { 
                             'fasttext': fasttext, 
-                            'textcnn': text_cnn, 
-                            'textrcnn': text_rcnn,
-                            'textinception': text_inception,
-                            'textrnn': text_rnn,
-                            'textrnnatt': text_rnn_attention,
+                            'cnn': cnn, 
+                            'rcnn': rcnn,
+                            'inception': inception,
+                            'rnn': rnn,
+                            'rnn_attention': rnn_attention,
                             }
         self.model = self.model_list[kwargs.get('which_model', 'fasttext')]
         self.output_dir = kwargs.get('output_dir', './output/')
@@ -141,11 +141,11 @@ class Classifier(Task):
     
     Available models
             'fasttext', 
-            'textCNN', 
-            'textRCNN',
-            'textInception',
-            'textRNN',
-            'textRNNATT',
+            'cnn', 
+            'rcnn',
+            'inception',
+            'rnn',
+            'rnn_attention',
     
     You could define your new model in models.py, and added in self.model_list
 
@@ -205,13 +205,13 @@ import unittest
 class TestStringMethods(unittest.TestCase):
 
     def test(self):
-        config ={'max_seq_length': 64,
-            'vob_size': 10000,
-            'emb_size': 128,
+        config ={'max_seq_length': 512,
+            'vob_size': 5000,
+            'emb_size': 768,
             'num_train_epochs': 2,
-            'train_batch_size': 512,
+            'train_batch_size': 256,
             'if_train': True,
-            'which_model': 'textRNN',
+            'which_model': 'fasttext',
             'train_file': './data/train.tsv',
             'dev_file': "./data/dev.tsv",
             'test_file': "./data/test.tsv",
